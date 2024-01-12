@@ -222,7 +222,7 @@ class SessionCipher {
     }
 
     if (counter - chainKey.index > 10000) {
-      throw InvalidMessageException('Over 10000 messages into the future!');
+      throw InvalidMessageException('Over ${iteration - senderChainKey.iteration} messages into the future!');
     }
 
     while (chainKey.index < counter) {
