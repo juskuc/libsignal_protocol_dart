@@ -24,10 +24,8 @@ class GroupCipher {
       final record = await _senderKeyStore.loadSenderKey(_senderKeyId);
       final senderKeyState = record.getSenderKeyState();
       final senderKey = senderKeyState.senderChainKey.senderMessageKey;
-      final ciphertext =
-          aesCbcEncrypt(senderKey.cipherKey, senderKey.iv, paddedPlaintext);
-      final senderKeyMessage = SenderKeyMessage(senderKeyState.keyId,
-          senderKey.iteration, ciphertext, senderKeyState.signingKeyPrivate);
+      final ciphertext = aesCbcEncrypt(senderKey.cipherKey, senderKey.iv, paddedPlaintext);
+      final senderKeyMessage = SenderKeyMessage(senderKeyState.keyId, senderKey.iteration, ciphertext, senderKeyState.signingKeyPrivate);
       final nextSenderChainKey = senderKeyState.senderChainKey.next;
       senderKeyState.senderChainKey = nextSenderChainKey;
       await _senderKeyStore.storeSenderKey(_senderKeyId, record);
@@ -37,27 +35,20 @@ class GroupCipher {
     }
   }
 
-  Future<Uint8List> decrypt(Uint8List senderKeyMessageBytes) async =>
-      decryptWithCallback(senderKeyMessageBytes, () {}());
+  Future<Uint8List> decrypt(Uint8List senderKeyMessageBytes) async => decryptWithCallback(senderKeyMessageBytes, () {}());
 
-  Future<Uint8List> decryptWithCallback(
-      Uint8List senderKeyMessageBytes, DecryptionCallback? callback) async {
+  Future<Uint8List> decryptWithCallback(Uint8List senderKeyMessageBytes, DecryptionCallback? callback) async {
     try {
       final record = await _senderKeyStore.loadSenderKey(_senderKeyId);
       if (record.isEmpty) {
-        throw NoSessionException(
-            'No group sender key for: ${_senderKeyId.serialize()}');
+        throw NoSessionException('No group sender key for: ${_senderKeyId.serialize()}');
       }
 
-      final senderKeyMessage =
-          SenderKeyMessage.fromSerialized(senderKeyMessageBytes);
-      final senderKeyState =
-          record.getSenderKeyStateById(senderKeyMessage.keyId);
+      final senderKeyMessage = SenderKeyMessage.fromSerialized(senderKeyMessageBytes);
+      final senderKeyState = record.getSenderKeyStateById(senderKeyMessage.keyId);
       senderKeyMessage.verifySignature(senderKeyState.signingKeyPublic);
-      final senderKey =
-          getSenderKey(senderKeyState, senderKeyMessage.iteration);
-      final plaintext = aesCbcDecrypt(
-          senderKey.cipherKey, senderKey.iv, senderKeyMessage.ciphertext);
+      final senderKey = getSenderKey(senderKeyState, senderKeyMessage.iteration);
+      final plaintext = aesCbcDecrypt(senderKey.cipherKey, senderKey.iv, senderKeyMessage.ciphertext);
 
       if (callback != null) {
         callback(plaintext);
@@ -83,8 +74,8 @@ class GroupCipher {
       }
     }
 
-    if (iteration - senderChainKey.iteration > 2000) {
-      throw InvalidMessageException('Over 2000 messages into the future!');
+    if (iteration - senderChainKey.iteration > 10000) {
+      throw InvalidMessageException('Over 10000 messages into the future!');
     }
 
     while (senderChainKey.iteration < iteration) {

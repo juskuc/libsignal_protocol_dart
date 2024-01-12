@@ -28,19 +28,11 @@ import 'state/signed_pre_key_store.dart';
 import 'untrusted_identity_exception.dart';
 
 class SessionCipher {
-  SessionCipher(
-      this._sessionStore,
-      this._preKeyStore,
-      SignedPreKeyStore signedPreKeyStore,
-      this._identityKeyStore,
-      this._remoteAddress) {
-    _sessionBuilder = SessionBuilder(_sessionStore, _preKeyStore,
-        signedPreKeyStore, _identityKeyStore, _remoteAddress);
+  SessionCipher(this._sessionStore, this._preKeyStore, SignedPreKeyStore signedPreKeyStore, this._identityKeyStore, this._remoteAddress) {
+    _sessionBuilder = SessionBuilder(_sessionStore, _preKeyStore, signedPreKeyStore, _identityKeyStore, _remoteAddress);
   }
 
-  SessionCipher.fromStore(
-      SignalProtocolStore store, SignalProtocolAddress remoteAddress)
-      : this(store, store, store, store, remoteAddress);
+  SessionCipher.fromStore(SignalProtocolStore store, SignalProtocolAddress remoteAddress) : this(store, store, store, store, remoteAddress);
 
   static final Object sessionLock = Object();
 
@@ -60,52 +52,33 @@ class SessionCipher {
     final sessionVersion = sessionState.getSessionVersion();
 
     final ciphertextBody = getCiphertext(messageKeys, paddedMessage);
-    CiphertextMessage ciphertextMessage = SignalMessage(
-        sessionVersion,
-        messageKeys.getMacKey(),
-        senderEphemeral,
-        chainKey.index,
-        previousCounter,
-        ciphertextBody,
-        sessionState.getLocalIdentityKey(),
-        sessionState.getRemoteIdentityKey());
+    CiphertextMessage ciphertextMessage = SignalMessage(sessionVersion, messageKeys.getMacKey(), senderEphemeral, chainKey.index, previousCounter,
+        ciphertextBody, sessionState.getLocalIdentityKey(), sessionState.getRemoteIdentityKey());
     if (sessionState.hasUnacknowledgedPreKeyMessage()) {
       final items = sessionState.getUnacknowledgedPreKeyMessageItems();
       final localRegistrationId = sessionState.localRegistrationId;
 
-      ciphertextMessage = PreKeySignalMessage.from(
-          sessionVersion,
-          localRegistrationId,
-          items.getPreKeyId(),
-          items.getSignedPreKeyId(),
-          items.getBaseKey(),
-          sessionState.getLocalIdentityKey(),
-          ciphertextMessage as SignalMessage);
+      ciphertextMessage = PreKeySignalMessage.from(sessionVersion, localRegistrationId, items.getPreKeyId(), items.getSignedPreKeyId(), items.getBaseKey(),
+          sessionState.getLocalIdentityKey(), ciphertextMessage as SignalMessage);
     }
 
     final nextChainKey = chainKey.getNextChainKey();
     sessionState.setSenderChainKey(nextChainKey);
 
-    if (!await _identityKeyStore.isTrustedIdentity(_remoteAddress,
-        sessionState.getRemoteIdentityKey(), Direction.sending)) {
-      throw UntrustedIdentityException(
-          _remoteAddress.getName(), sessionState.getRemoteIdentityKey());
+    if (!await _identityKeyStore.isTrustedIdentity(_remoteAddress, sessionState.getRemoteIdentityKey(), Direction.sending)) {
+      throw UntrustedIdentityException(_remoteAddress.getName(), sessionState.getRemoteIdentityKey());
     }
 
-    await _identityKeyStore.saveIdentity(
-        _remoteAddress, sessionState.getRemoteIdentityKey());
+    await _identityKeyStore.saveIdentity(_remoteAddress, sessionState.getRemoteIdentityKey());
     await _sessionStore.storeSession(_remoteAddress, sessionRecord);
     return ciphertextMessage;
   }
 
-  Future<Uint8List> decrypt(PreKeySignalMessage ciphertext) async =>
-      decryptWithCallback(ciphertext, () {}());
+  Future<Uint8List> decrypt(PreKeySignalMessage ciphertext) async => decryptWithCallback(ciphertext, () {}());
 
-  Future<Uint8List> decryptWithCallback(
-      PreKeySignalMessage ciphertext, DecryptionCallback? callback) async {
+  Future<Uint8List> decryptWithCallback(PreKeySignalMessage ciphertext, DecryptionCallback? callback) async {
     final sessionRecord = await _sessionStore.loadSession(_remoteAddress);
-    final unsignedPreKeyId =
-        await _sessionBuilder.process(sessionRecord, ciphertext);
+    final unsignedPreKeyId = await _sessionBuilder.process(sessionRecord, ciphertext);
     final plaintext = _decrypt(sessionRecord, ciphertext.getWhisperMessage());
 
     if (callback != null) {
@@ -121,11 +94,9 @@ class SessionCipher {
     return plaintext;
   }
 
-  Future<Uint8List> decryptFromSignal(SignalMessage cipherText) async =>
-      decryptFromSignalWithCallback(cipherText, () {}());
+  Future<Uint8List> decryptFromSignal(SignalMessage cipherText) async => decryptFromSignalWithCallback(cipherText, () {}());
 
-  Future<Uint8List> decryptFromSignalWithCallback(
-      SignalMessage cipherText, DecryptionCallback? callback) async {
+  Future<Uint8List> decryptFromSignalWithCallback(SignalMessage cipherText, DecryptionCallback? callback) async {
     if (!await _sessionStore.containsSession(_remoteAddress)) {
       throw NoSessionException('No session for: $_remoteAddress');
     }
@@ -133,16 +104,11 @@ class SessionCipher {
     final sessionRecord = await _sessionStore.loadSession(_remoteAddress);
     final plaintext = _decrypt(sessionRecord, cipherText);
 
-    if (!await _identityKeyStore.isTrustedIdentity(
-        _remoteAddress,
-        sessionRecord.sessionState.getRemoteIdentityKey(),
-        Direction.receiving)) {
-      throw UntrustedIdentityException(_remoteAddress.getName(),
-          sessionRecord.sessionState.getRemoteIdentityKey());
+    if (!await _identityKeyStore.isTrustedIdentity(_remoteAddress, sessionRecord.sessionState.getRemoteIdentityKey(), Direction.receiving)) {
+      throw UntrustedIdentityException(_remoteAddress.getName(), sessionRecord.sessionState.getRemoteIdentityKey());
     }
 
-    await _identityKeyStore.saveIdentity(
-        _remoteAddress, sessionRecord.sessionState.getRemoteIdentityKey());
+    await _identityKeyStore.saveIdentity(_remoteAddress, sessionRecord.sessionState.getRemoteIdentityKey());
 
     if (callback != null) {
       callback(plaintext);
@@ -158,8 +124,7 @@ class SessionCipher {
     final exceptions = <Exception>[];
 
     try {
-      final sessionState =
-          SessionState.fromSessionState(sessionRecord.sessionState);
+      final sessionState = SessionState.fromSessionState(sessionRecord.sessionState);
       final plaintext = _decryptFromState(sessionState, cipherText);
 
       sessionRecord.state = sessionState;
@@ -186,26 +151,21 @@ class SessionCipher {
     throw InvalidMessageException('No valid sessions. $exceptions[0]');
   }
 
-  Uint8List _decryptFromState(
-      SessionState sessionState, SignalMessage ciphertextMessage) {
+  Uint8List _decryptFromState(SessionState sessionState, SignalMessage ciphertextMessage) {
     if (!sessionState.hasSenderChain()) {
       throw InvalidMessageException('Uninitialized session!');
     }
 
-    if (ciphertextMessage.getMessageVersion() !=
-        sessionState.getSessionVersion()) {
-      throw InvalidMessageException(
-          'Message version $ciphertextMessage.getMessageVersion(), but session version $sessionState.getSessionVersion()');
+    if (ciphertextMessage.getMessageVersion() != sessionState.getSessionVersion()) {
+      throw InvalidMessageException('Message version $ciphertextMessage.getMessageVersion(), but session version $sessionState.getSessionVersion()');
     }
 
     final theirEphemeral = ciphertextMessage.getSenderRatchetKey();
     final counter = ciphertextMessage.getCounter();
     final chainKey = _getOrCreateChainKey(sessionState, theirEphemeral);
-    final messageKeys = _getOrCreateMessageKeys(
-        sessionState, theirEphemeral, chainKey!, counter);
+    final messageKeys = _getOrCreateMessageKeys(sessionState, theirEphemeral, chainKey!, counter);
 
-    ciphertextMessage.verifyMac(sessionState.getRemoteIdentityKey()!,
-        sessionState.getLocalIdentityKey(), messageKeys!.getMacKey());
+    ciphertextMessage.verifyMac(sessionState.getRemoteIdentityKey()!, sessionState.getLocalIdentityKey(), messageKeys!.getMacKey());
 
     final plaintext = _getPlaintext(messageKeys, ciphertextMessage.getBody());
 
@@ -228,8 +188,7 @@ class SessionCipher {
     return record.sessionState.getSessionVersion();
   }
 
-  ChainKey? _getOrCreateChainKey(
-      SessionState sessionState, ECPublicKey theirEphemeral) {
+  ChainKey? _getOrCreateChainKey(SessionState sessionState, ECPublicKey theirEphemeral) {
     try {
       if (sessionState.hasReceiverChain(theirEphemeral)) {
         return sessionState.getReceiverChainKey(theirEphemeral);
@@ -238,8 +197,7 @@ class SessionCipher {
         final ourEphemeral = sessionState.getSenderRatchetKeyPair();
         final receiverChain = rootKey.createChain(theirEphemeral, ourEphemeral);
         final ourNewEphemeral = Curve.generateKeyPair();
-        final senderChain =
-            receiverChain.$1.createChain(theirEphemeral, ourNewEphemeral);
+        final senderChain = receiverChain.$1.createChain(theirEphemeral, ourNewEphemeral);
 
         sessionState
           ..rootKey = senderChain.$1
@@ -254,19 +212,17 @@ class SessionCipher {
     }
   }
 
-  MessageKeys? _getOrCreateMessageKeys(SessionState sessionState,
-      ECPublicKey theirEphemeral, ChainKey chainKey, int counter) {
+  MessageKeys? _getOrCreateMessageKeys(SessionState sessionState, ECPublicKey theirEphemeral, ChainKey chainKey, int counter) {
     if (chainKey.index > counter) {
       if (sessionState.hasMessageKeys(theirEphemeral, counter)) {
         return sessionState.removeMessageKeys(theirEphemeral, counter);
       } else {
-        throw DuplicateMessageException(
-            'Received message with old counter: ${chainKey.index}, $counter');
+        throw DuplicateMessageException('Received message with old counter: ${chainKey.index}, $counter');
       }
     }
 
-    if (counter - chainKey.index > 2000) {
-      throw InvalidMessageException('Over 2000 messages into the future!');
+    if (counter - chainKey.index > 10000) {
+      throw InvalidMessageException('Over 10000 messages into the future!');
     }
 
     while (chainKey.index < counter) {
@@ -276,15 +232,11 @@ class SessionCipher {
       chainKey = chainKey.getNextChainKey();
     }
 
-    sessionState.setReceiverChainKey(
-        theirEphemeral, chainKey.getNextChainKey());
+    sessionState.setReceiverChainKey(theirEphemeral, chainKey.getNextChainKey());
     return chainKey.getMessageKeys();
   }
 
-  Uint8List getCiphertext(MessageKeys messageKeys, Uint8List plaintext) =>
-      aesCbcEncrypt(messageKeys.getCipherKey(), messageKeys.getIv(), plaintext);
+  Uint8List getCiphertext(MessageKeys messageKeys, Uint8List plaintext) => aesCbcEncrypt(messageKeys.getCipherKey(), messageKeys.getIv(), plaintext);
 
-  Uint8List _getPlaintext(MessageKeys messageKeys, Uint8List cipherText) =>
-      aesCbcDecrypt(
-          messageKeys.getCipherKey(), messageKeys.getIv(), cipherText);
+  Uint8List _getPlaintext(MessageKeys messageKeys, Uint8List cipherText) => aesCbcDecrypt(messageKeys.getCipherKey(), messageKeys.getIv(), cipherText);
 }
