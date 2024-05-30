@@ -44,7 +44,7 @@ class SessionBuilder {
           _remoteAddress.getName(), theirIdentityKey);
     }
 
-    final unsignedPreKeyId = processV3(sessionRecord, message);
+    final unsignedPreKeyId = await processV3(sessionRecord, message);
 
     await _identityKeyStore.saveIdentity(_remoteAddress, theirIdentityKey);
 
